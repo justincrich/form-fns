@@ -1,0 +1,15 @@
+{
+  "typescript.tsdk": "node_modules/ttypescript/lib",
+  "eslint.enable": true,
+  "eslint.validate": [
+      "javascript",
+      "javascriptreact",
+      "typescript",
+      "typescriptreact"
+    ],
+  "editor.codeActionsOnSave": {
+      "source.fixAll": true
+  },
+  "editor.tabSize": 2,
+  "editor.defaultFormatter": "dbaeumer.vscode-eslint"
+}
