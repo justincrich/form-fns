@@ -1,9 +1,9 @@
 import React from 'react'
 import styled from 'styled-components'
-import { useFormFactory } from '../../../src/useFormFactory';
+import { useFormFns } from '../../../src/useFormFns';
 
 export const Simple = () => {
-  const {inputs, errors} = useFormFactory({
+  const {inputs, errors} = useFormFns({
     seedValues: {
       name: ''
     },

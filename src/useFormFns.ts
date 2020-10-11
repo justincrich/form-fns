@@ -1,5 +1,4 @@
 import { useReducer, Reducer, ChangeEvent, useEffect, useCallback } from 'react'
-import isEqual from 'fast-deep-equal'
 import produce from 'immer'
 
 type Deep<T = Object> = { [K in keyof T]: Deep<T[K]> }
@@ -87,7 +86,7 @@ const baseReducer = <Template extends object>(
 
 const deepCopy = <T>(object: T): T => JSON.parse(JSON.stringify(object))
 
-export const useFormFactory = <Template extends object>(params: {
+export const useFormFns = <Template extends object>(params: {
     seedValues: Template
     invalidMessages?: Partial<{ [key in keyof Template]: string }>
 }) => {
