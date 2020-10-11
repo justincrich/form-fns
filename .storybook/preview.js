@@ -1,8 +1,6 @@
-import { addDecorator, addParameters } from '@storybook/react'
-import { themeDecorator } from './config/theming'
+import { addParameters } from '@storybook/react'
 import '@storybook/addon-console'
 
-addDecorator(themeDecorator)
 addParameters({
   viewport: {
     viewports: {

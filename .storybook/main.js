@@ -2,7 +2,7 @@ const Dotenv = require('dotenv-webpack');
 
 
 module.exports = {
-  stories: ['../src/**/*.stories.tsx'],
+  stories: ['./**/*.stories.tsx'],
   addons: [
     '@storybook/preset-create-react-app',
     '@storybook/addon-actions',
