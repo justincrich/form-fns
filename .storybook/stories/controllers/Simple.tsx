@@ -3,18 +3,27 @@ import styled from 'styled-components'
 import { useFormFactory } from '../../../src/useFormFactory';
 
 export const Simple = () => {
-  const {inputs} = useFormFactory<{
-    name: string
-  }>({
+  const {inputs, errors} = useFormFactory({
     seedValues: {
       name: ''
-    }
-  })
+    },
 
+  })
+const reject = (value)=>value !== 'cat'
+  console.log(inputs.name.error())
   return (
     <Container>
      <h1>Form</h1>
-     <Input placeholder="Name" onChange={inputs.name.onChange} value={inputs.name.value()}/>
+     <Input placeholder="Name" onChange={(e)=>inputs.name.onChange(e,{
+       validation: [reject]
+     })} value={inputs.name.value()}/>
+    {
+      errors.name && (
+        <div>
+          Error {errors.name}
+        </div>
+      )
+    }
     </Container>
   )
 }

@@ -1,13 +1,42 @@
-import { useReducer, Reducer, ChangeEvent } from 'react'
+import { useReducer, Reducer, ChangeEvent, useEffect, useCallback } from 'react'
+import isEqual from 'fast-deep-equal'
 import produce from 'immer'
 
 type Deep<T = Object> = { [K in keyof T]: Deep<T[K]> }
-type KeyType = string | number | symbol
+
+type ValueType<Template extends object> = Template[keyof Template]
+
+type ErrorType = Error | null | boolean | string
+
 type Event = ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
 
 type State<Template extends object> = {
     values: Partial<Template>
-    errors: Record<keyof Template, Error | null>
+    errors: Record<keyof Template, ErrorType>
+}
+
+type ValidationResultFail = {
+    isValid: false
+    message: ErrorType
+}
+
+type ValidationResultPass = {
+    isValid: true
+}
+
+type ValidationResult = ValidationResultFail | ValidationResultPass
+
+type ValidationFn<Template extends object> = (
+    value: ValueType<Template> | undefined,
+    state: State<Template>
+) => boolean | [boolean, string | Error]
+
+type ValidationType<Template extends object> =
+    | ValidationFn<Template>[]
+    | ValidationFn<Template>
+
+type ChangeConfig<Template extends object> = {
+    validation: ValidationType<Template>
 }
 
 type Action<Type, Payload> = { type: Type; payload: Payload }
@@ -19,10 +48,12 @@ type ValueAction<Template> = Action<
 
 type ErrorAction<Template> = Action<
     'ERROR',
-    { key: keyof Template; error: Error }
+    { key: keyof Template; error: ErrorType }
 >
 
 type BaseActions<Template> = ValueAction<Template> | ErrorAction<Template>
+
+const DEFAULT_MESSAGE = 'Invalid'
 
 // think about arrays
 const getFullPath = (unknownPath: unknown): (string | number)[] => {
@@ -35,6 +66,7 @@ const baseReducer = <Template extends object>(
     state: State<Template>,
     action: BaseActions<Template>
 ): State<Template> => {
+    console.log(action, state)
     switch (action.type) {
         case 'VALUE':
             return produce(state, (draft) => {
@@ -46,20 +78,24 @@ const baseReducer = <Template extends object>(
             return produce(state, (draft) => {
                 const { key, error } = action.payload
                 const strKey = `${key}`
-                draft.values[strKey] = error
+                draft.errors[strKey] = error
             })
         default:
             return { ...state }
     }
 }
 
+const deepCopy = <T>(object: T): T => JSON.parse(JSON.stringify(object))
+
 export const useFormFactory = <Template extends object>(params: {
     seedValues: Template
+    invalidMessages?: Partial<{ [key in keyof Template]: string }>
 }) => {
     type KeyType = keyof Template
-    type ValueType = Template[keyof Template] | undefined
+    type ValueOrUndefined = ValueType<Template> | undefined
+    type InputType = ValueType<Template> | Event
 
-    const { seedValues } = params
+    const { seedValues, invalidMessages = {} } = params
     const errors = Object.keys(seedValues).reduce((acc, key) => {
         acc[key] = null
         return acc
@@ -72,22 +108,62 @@ export const useFormFactory = <Template extends object>(params: {
         errors,
     })
 
-    type InputType = ValueType | Event
+    const handleValidation = (
+        key: KeyType,
+        value: ValueOrUndefined,
+        validationConfig: ChangeConfig<Template>['validation']
+    ): boolean => {
+        let validations = Array.isArray(validationConfig)
+            ? validationConfig
+            : [validationConfig]
 
-    const setValue = (key: KeyType, data: InputType): void => {
-        let inputValue: ValueType = undefined
+        for (const valIdx in validations) {
+            const result = validations[valIdx](value, deepCopy(state))
+            const [isValid, passedMessage] = Array.isArray(result)
+                ? result
+                : [result]
+            const defaultMessage: string =
+                invalidMessages[key as string] || DEFAULT_MESSAGE
+
+            if (!isValid) {
+                dispatch({
+                    type: 'ERROR',
+                    payload: { key, error: passedMessage || defaultMessage },
+                })
+                return false
+            }
+        }
+        dispatch({
+            type: 'ERROR',
+            payload: { key, error: null },
+        })
+        return true
+    }
+
+    const handleValue = (
+        key: KeyType,
+        data: InputType,
+        config?: ChangeConfig<Template>
+    ): void => {
+        let inputValue: ValueOrUndefined = undefined
         if (data && data['target']) inputValue = data['target']['value']
-        else inputValue = data as ValueType
+        else inputValue = data as ValueOrUndefined
+        if (config?.validation)
+            handleValidation(key, inputValue, config.validation)
         dispatch({ type: 'VALUE', payload: { key, value: inputValue } })
     }
 
     const actionFns = (key: KeyType) => {
         const templateKey = key as KeyType
         return {
-            value: (): ValueType | undefined => state.values[templateKey],
-            onChange: (data: InputType) => setValue(templateKey, data),
+            value: (): ValueOrUndefined => state.values[templateKey],
+            onChange: (
+                data: InputType,
+                config?: ChangeConfig<Template>
+            ): void => handleValue(key, data, config),
             error: () => state.errors[templateKey],
-            validate: () => {},
+            validate: (validations: ValidationType<Template>): boolean =>
+                handleValidation(key, state.values[key], validations),
         }
     }
 
@@ -109,5 +185,6 @@ export const useFormFactory = <Template extends object>(params: {
         },
         seedValues,
         inputs: inputFns,
+        errors: state.errors,
     }
 }
