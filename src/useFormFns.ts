@@ -1,7 +1,11 @@
+/* eslint-disable no-param-reassign */
+/* eslint-disable @typescript-eslint/no-for-in-array */
+/* eslint-disable no-restricted-syntax */
+/* eslint-disable guard-for-in */
 import { useReducer, Reducer, ChangeEvent, useEffect, useCallback } from 'react'
 import produce from 'immer'
 
-type Deep<T = Object> = { [K in keyof T]: Deep<T[K]> }
+type Deep<T = Record<string, any>> = { [K in keyof T]: Deep<T[K]> }
 
 type ValueType<Template extends object> = Template[keyof Template]
 
@@ -65,7 +69,6 @@ const baseReducer = <Template extends object>(
     state: State<Template>,
     action: BaseActions<Template>
 ): State<Template> => {
-    console.log(action, state)
     switch (action.type) {
         case 'VALUE':
             return produce(state, (draft) => {
@@ -86,13 +89,30 @@ const baseReducer = <Template extends object>(
 
 const deepCopy = <T>(object: T): T => JSON.parse(JSON.stringify(object))
 
+const isEvent = (unknown: unknown): unknown is Event =>
+    typeof unknown === 'object'
+
+type InputType<Template extends object> = ValueType<Template> | Event
 export const useFormFns = <Template extends object>(params: {
     seedValues: Template
     invalidMessages?: Partial<{ [key in keyof Template]: string }>
-}) => {
+}): {
+    inputs: Record<
+        keyof Template,
+        {
+            value: () => Partial<Template>[keyof Template]
+            error: () => Record<keyof Template, ErrorType>[keyof Template]
+            onChange: (
+                data: InputType<Template>,
+                config?: ChangeConfig<Template> | undefined
+            ) => void
+            validate: (validations: ValidationType<Template>) => boolean
+        }
+    >
+    errors: State<Template>['errors']
+} => {
     type KeyType = keyof Template
     type ValueOrUndefined = ValueType<Template> | undefined
-    type InputType = ValueType<Template> | Event
 
     const { seedValues, invalidMessages = {} } = params
     const errors = Object.keys(seedValues).reduce((acc, key) => {
@@ -112,7 +132,7 @@ export const useFormFns = <Template extends object>(params: {
         value: ValueOrUndefined,
         validationConfig: ChangeConfig<Template>['validation']
     ): boolean => {
-        let validations = Array.isArray(validationConfig)
+        const validations = Array.isArray(validationConfig)
             ? validationConfig
             : [validationConfig]
 
@@ -127,7 +147,10 @@ export const useFormFns = <Template extends object>(params: {
             if (!isValid) {
                 dispatch({
                     type: 'ERROR',
-                    payload: { key, error: passedMessage || defaultMessage },
+                    payload: {
+                        key,
+                        error: passedMessage || defaultMessage,
+                    },
                 })
                 return false
             }
@@ -141,27 +164,34 @@ export const useFormFns = <Template extends object>(params: {
 
     const handleValue = (
         key: KeyType,
-        data: InputType,
+        data: InputType<Template>,
         config?: ChangeConfig<Template>
     ): void => {
-        let inputValue: ValueOrUndefined = undefined
-        if (data && data['target']) inputValue = data['target']['value']
+        let inputValue
+        if (isEvent(data)) inputValue = data.target.value
         else inputValue = data as ValueOrUndefined
         if (config?.validation)
             handleValidation(key, inputValue, config.validation)
         dispatch({ type: 'VALUE', payload: { key, value: inputValue } })
     }
 
-    const actionFns = (key: KeyType) => {
-        const templateKey = key as KeyType
+    const actionFns = (
+        key: KeyType
+    ): {
+        value: () => State<Template>['values'][KeyType]
+        error: () => State<Template>['errors'][KeyType]
+        onChange: (
+            data: InputType<Template>,
+            config?: ChangeConfig<Template>
+        ) => void
+        validate: (validations: ValidationType<Template>) => boolean
+    } => {
+        const templateKey = key
         return {
-            value: (): ValueOrUndefined => state.values[templateKey],
-            onChange: (
-                data: InputType,
-                config?: ChangeConfig<Template>
-            ): void => handleValue(key, data, config),
+            value: () => state.values[templateKey],
+            onChange: (data, config) => handleValue(key, data, config),
             error: () => state.errors[templateKey],
-            validate: (validations: ValidationType<Template>): boolean =>
+            validate: (validations): boolean =>
                 handleValidation(key, state.values[key], validations),
         }
     }
@@ -173,16 +203,6 @@ export const useFormFns = <Template extends object>(params: {
     }, {} as Record<keyof Template, ReturnType<typeof actionFns>>)
 
     return {
-        onChange: (key: keyof Template, value: Template[keyof Template]) => {
-            dispatch({
-                type: 'VALUE',
-                payload: {
-                    key,
-                    value,
-                },
-            })
-        },
-        seedValues,
         inputs: inputFns,
         errors: state.errors,
     }
