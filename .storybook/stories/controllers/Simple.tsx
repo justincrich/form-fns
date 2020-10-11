@@ -9,13 +9,18 @@ export const Simple = () => {
     },
 
   })
-const reject = (value)=>value !== 'cat'
-  console.log(inputs.name.error())
+const minone = (value):[boolean, string] => {
+  return [Boolean(value) , 'you must have one']
+}
+const reject = (value):[boolean, string] => {
+  return [value !== 'cat', 'kats are dumb']
+}
+
   return (
     <Container>
      <h1>Form</h1>
      <Input placeholder="Name" onChange={(e)=>inputs.name.onChange(e,{
-       validation: [reject]
+       validation: [minone, reject]
      })} value={inputs.name.value()}/>
     {
       errors.name && (
@@ -27,7 +32,6 @@ const reject = (value)=>value !== 'cat'
     </Container>
   )
 }
-
 
 const Container = styled.div`
   background-color: #ffffff;
