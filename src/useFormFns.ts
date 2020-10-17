@@ -31,7 +31,7 @@ type ValidationResult = ValidationResultFail | ValidationResultPass
 
 type ValidationFn<Template extends object> = (
     value: ValueType<Template> | undefined,
-    state: State<Template>
+    previousState: State<Template>
 ) => boolean | [boolean, string | Error]
 
 type ValidationType<Template extends object> =
@@ -39,7 +39,11 @@ type ValidationType<Template extends object> =
     | ValidationFn<Template>
 
 type ChangeConfig<Template extends object> = {
-    validation: ValidationType<Template>
+    validation?: ValidationType<Template>
+    submit?: (
+        value: ValueType<Template>,
+        previousState: State<Template>
+    ) => void
 }
 
 type Action<Type, Payload> = { type: Type; payload: Payload }
@@ -110,6 +114,7 @@ export const useFormFns = <Template extends object>(params: {
         }
     >
     errors: State<Template>['errors']
+    values: State<Template>['values']
 } => {
     type KeyType = keyof Template
     type ValueOrUndefined = ValueType<Template> | undefined
@@ -132,6 +137,7 @@ export const useFormFns = <Template extends object>(params: {
         value: ValueOrUndefined,
         validationConfig: ChangeConfig<Template>['validation']
     ): boolean => {
+        if (!validationConfig) return true
         const validations = Array.isArray(validationConfig)
             ? validationConfig
             : [validationConfig]
@@ -170,8 +176,12 @@ export const useFormFns = <Template extends object>(params: {
         let inputValue
         if (isEvent(data)) inputValue = data.target.value
         else inputValue = data as ValueOrUndefined
+        let isValid = true
         if (config?.validation)
-            handleValidation(key, inputValue, config.validation)
+            isValid = handleValidation(key, inputValue, config.validation)
+        if (config?.submit && isValid) {
+            config.submit(inputValue, state)
+        }
         dispatch({ type: 'VALUE', payload: { key, value: inputValue } })
     }
 
@@ -205,5 +215,6 @@ export const useFormFns = <Template extends object>(params: {
     return {
         inputs: inputFns,
         errors: state.errors,
+        values: deepCopy(state.values),
     }
 }
