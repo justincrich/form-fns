@@ -3,6 +3,7 @@ import { text, withKnobs, boolean, select, object } from '@storybook/addon-knobs
 
 import { ComponentShowcase } from './decorators/ComponentShowcase'
 import { Simple } from './controllers/Simple'
+import {ArrayComponent} from './controllers/Array'
 
 export default {
     title: 'Components',
@@ -10,3 +11,5 @@ export default {
 }
 
 export const SimpleForm = () => <Simple/>
+
+export const ArrayForm = () => <ArrayComponent />
