@@ -8,23 +8,23 @@ import produce from 'immer'
 
 type TemplateType = { [key in string]: any | any[] }
 
-export type ErrorType = string | undefined
+export type ErrorType = string | undefined | null
 
-type State<Template> = {
+type State<Template extends TemplateType> = {
     values: Template
     errors: { [P in keyof Template]?: ErrorType | ErrorType[] }
 }
 
-type ConditionalArrayItemType<
+type ConditionalValueSelectionType<
     Template,
     K extends keyof Template
-    > = Template[K] extends Array<any> ? Template[K][number] : never
+    > = Template[K] extends Array<any> ? Template[K][number] : Template[K]
 
 export type ValidationFn<
     Template,
     K extends keyof Template = keyof Template
     > = (
-        currentValue: Template[K],
+        currentValue: ConditionalValueSelectionType<Template, K>,
         nextState: State<Template>['values']
     ) => {
         isValid: boolean
@@ -35,18 +35,32 @@ type ValidationType<Template, K extends keyof Template> =
     | ValidationFn<Template, K>[]
     | ValidationFn<Template, K>
 
-type ChangeArgs<Template, K extends keyof Template> = {
+type ChangeArgs<Template extends TemplateType, K extends keyof Template> = {
     changedKey: K
     changedIndex?: number
-    newValue: Template[K]
+    newValue: ConditionalValueSelectionType<Template, K>
     previousState: State<Template>['values']
 }
-type ChangeConfig<Template, K extends keyof Template> = {
-    validation?: ValidationType<Template, K>
-    onValid?: (args: ChangeArgs<Template, K>) => void
-    onInvalid?: (args: ChangeArgs<Template, K>) => void
-    onFinal?: (args: ChangeArgs<Template, K>) => void
-}
+
+type CallbackType<Template extends TemplateType, K extends keyof Template> = (
+    args: ChangeArgs<Template, K>
+) => void
+
+type BaseChangeConfig<
+    Template extends TemplateType,
+    K extends keyof Template
+    > = {
+        onFinal?: (args: ChangeArgs<Template, K>) => void
+    }
+
+type ValidationChangeConfig<
+    Template extends TemplateType,
+    K extends keyof Template
+    > = {
+        validation?: ValidationType<Template, K>
+        onValid?: (args: ChangeArgs<Template, K>) => void
+        onInvalid?: (args: ChangeArgs<Template, K>) => void
+    } & BaseChangeConfig<Template, K>
 
 type Action<Type, Payload> = { type: Type; payload: Payload }
 
@@ -55,40 +69,59 @@ type ValueAction<Template> = Action<
     { key: keyof Template; value: State<Template>['values'][keyof Template] }
 >
 
-type ArrayValueAction<Template> = Action<
-    'ARRAY_VALUE',
+type ArrayValueAction<Template extends TemplateType> = Action<
+    'SET_ARRAY_VALUE',
     {
         key: keyof Template
-        value: ConditionalArrayItemType<Template, keyof Template>
+        value: ConditionalValueSelectionType<Template, keyof Template>
         index: number
     }
 >
 
-type ErrorAction<Template> = Action<
+type ArrayItemRemoveAction<Template extends TemplateType> = Action<
+    'ARRAY_REMOVE_ITEM',
+    {
+        key: keyof Template
+        index: number
+    }
+>
+
+type ArrayItemAddAction<Template extends TemplateType> = Action<
+    'ARRAY_ADD_ITEM',
+    {
+        key: keyof Template
+        index: number
+        value: any
+    }
+>
+
+type ErrorAction<Template extends TemplateType> = Action<
     'ERROR',
     { key: keyof Template; error: State<Template>['errors'][keyof Template] }
 >
 
-type BulkErrorAction<Template> = Action<
+type BulkErrorAction<Template extends TemplateType> = Action<
     'BULK_ERRORS',
     State<Template>['errors']
 >
 
-type ArrayErrorAction<Template> = Action<
+type ArrayErrorAction<Template extends TemplateType> = Action<
     'ARRAY_ERROR',
     {
         key: keyof Template
-        value: ErrorType
+        error: ErrorType
         index: number
     }
 >
 
-type BaseActions<Template> =
+type BaseActions<Template extends TemplateType> =
     | ValueAction<Template>
     | ErrorAction<Template>
     | BulkErrorAction<Template>
     | ArrayValueAction<Template>
     | ArrayErrorAction<Template>
+    | ArrayItemRemoveAction<Template>
+    | ArrayItemAddAction<Template>
 
 const DEFAULT_MESSAGE = 'Invalid'
 
@@ -118,7 +151,7 @@ const baseReducer = <Template extends TemplateType>(
                 const { error, key } = action.payload
                 draft.errors[key] = error
             })
-        case 'ARRAY_VALUE':
+        case 'SET_ARRAY_VALUE':
             return produce(state, (draft: State<Template>) => {
                 const { index, key, value } = action.payload
                 // TODO: fix this better, kinda a hack
@@ -130,16 +163,53 @@ const baseReducer = <Template extends TemplateType>(
             })
         case 'ARRAY_ERROR':
             return produce(state, (draft: State<Template>) => {
-                const { index, key, value } = action.payload
+                const { index, key, error } = action.payload
                 draft.errors[key] = setArrayItem(
                     index,
-                    value,
-                    draft.values?.[key]
+                    error,
+                    draft.errors?.[key]
                 )
             })
         case 'BULK_ERRORS':
             return produce(state, (draft: State<Template>) => {
                 draft.errors = action.payload
+            })
+        case 'ARRAY_REMOVE_ITEM':
+            return produce(state, (draft: State<Template>) => {
+                const { key, index } = action.payload
+                const mutableList = draft.values[key]
+                if (!Array.isArray(mutableList)) return
+
+                mutableList.splice(index, 1)
+
+                draft.values[key] = mutableList
+
+                const errors: ErrorType | ErrorType[] = draft.errors[key]
+                if (Array.isArray(errors)) {
+                    errors.splice(index, 1)
+                    draft.errors[key] = errors
+                }
+            })
+        case 'ARRAY_ADD_ITEM':
+            return produce(state, (draft: State<Template>) => {
+                const { index, key, value } = action.payload
+                const list = draft.values[key] || []
+                const emptyErrors: ErrorType[] = new Array(
+                    Array.isArray(list) ? list.length : 1
+                ).fill(null)
+                const errors = draft.errors[key] || emptyErrors
+                if (!Array.isArray(list) || !Array.isArray(errors)) return
+
+                draft.values[key] = [
+                    ...list.slice(0, index),
+                    value,
+                    ...list.slice(index),
+                ] as Template[keyof Template]
+                draft.errors[key] = [
+                    ...errors.slice(0, index),
+                    null,
+                    ...errors.slice(index),
+                ]
             })
         default:
             return { ...state }
@@ -148,11 +218,11 @@ const baseReducer = <Template extends TemplateType>(
 
 const deepCopy = <T>(object: T): T => JSON.parse(JSON.stringify(object))
 
-type ValidationDirectory<Template> = {
+type ValidationDirectory<Template extends TemplateType> = {
     [K in keyof Template]?: ValidationType<Template, K>
 }
 
-export const useFormFns = <Template>({
+export const useFormFns = <Template extends TemplateType>({
     initialValues,
     validation,
 }: {
@@ -168,13 +238,24 @@ export const useFormFns = <Template>({
     setValue: <K extends keyof Template>(
         key: K,
         value: Template[K],
-        config?: ChangeConfig<Template, K>
+        config?: ValidationChangeConfig<Template, K>
     ) => void
     setArrayValue: <K extends keyof Template>(
         key: K,
         index: number,
-        value: ConditionalArrayItemType<Template, K>,
-        config?: ChangeConfig<Template, K>
+        value: Template[K][number],
+        config?: ValidationChangeConfig<Template, K>
+    ) => void
+    addArrayItem: <K extends keyof Template>(
+        key: K,
+        index: number,
+        value: Template[K][number],
+        config?: BaseChangeConfig<Template, K>
+    ) => void
+    removeArrayItem: <K extends keyof Template>(
+        key: K,
+        index: number,
+        config?: BaseChangeConfig<Template, K>
     ) => void
     submit: () => State<Template>['values'] | undefined
 } => {
@@ -186,7 +267,7 @@ export const useFormFns = <Template>({
     })
 
     const validateField = <K extends keyof Template>(
-        value: Template[K],
+        value: ConditionalValueSelectionType<Template, K>,
         operations: ValidationType<Template, K>
     ): ErrorType => {
         if (!operations) {
@@ -208,14 +289,14 @@ export const useFormFns = <Template>({
                 return message
             }
         }
-        return undefined
+        return null
     }
 
     const handleCallbacks = <K extends keyof Template>(
-        params: ChangeConfig<Template, K> & {
-            error?: ErrorType
+        params: ValidationChangeConfig<Template, K> & {
+            error?: ErrorType | ErrorType[]
             key: K
-            value: Template[K]
+            value: ConditionalValueSelectionType<Template, K>
             index?: number
         }
     ): void => {
@@ -260,13 +341,6 @@ export const useFormFns = <Template>({
 
             if (config && config.validation) {
                 error = validateField(value, config.validation)
-                dispatch({
-                    type: 'ERROR',
-                    payload: {
-                        key,
-                        error,
-                    },
-                })
             }
 
             handleCallbacks({
@@ -276,6 +350,14 @@ export const useFormFns = <Template>({
                 key,
                 value,
                 error,
+            })
+
+            dispatch({
+                type: 'ERROR',
+                payload: {
+                    key,
+                    error,
+                },
             })
 
             dispatch({
@@ -289,44 +371,28 @@ export const useFormFns = <Template>({
         setArrayValue: <K extends keyof Template>(
             key: K,
             index: number,
-            value: ConditionalArrayItemType<Template, K>,
-            config: ChangeConfig<Template, K> | undefined
+            value: ConditionalValueSelectionType<Template, K>,
+            config: ValidationChangeConfig<Template, K> | undefined
         ): void => {
             const { onFinal, onValid, onInvalid } = config || {}
-            const previousList = state.values[key]
-            if (
-                !Array.isArray(previousList) ||
-                typeof previousList !== 'undefined' ||
-                previousList !== null
-            ) {
-                throw new Error('Value must be array or undefined')
+
+            if (!Array.isArray(state.values[key] || [])) {
+                throw new Error('Only array values can be set')
             }
-            const previousErrors = state.errors[key]
+            const previousErrors = state.errors[key] || []
             if (!Array.isArray(previousErrors))
-                // eslint-disable-next-line no-console
-                console.error(
-                    'Array errors must be in array format, resetting value'
+                throw new Error('Only array errors can be set')
+
+            if (index >= state.values[key].length || index < 0)
+                throw new Error(
+                    `Invalid index ${index}, total length is ${state.values[key].length}`
                 )
 
-            const mutableList = previousList ? [...previousList] : []
-            const safePreviousErrors = Array.isArray(state.errors)
-                ? state.errors
-                : []
-
-            let error = safePreviousErrors[index]
+            let error: ErrorType = previousErrors[index] || null
 
             if (config && config.validation) {
                 error = validateField(value, config.validation)
-                dispatch({
-                    type: 'ERROR',
-                    payload: {
-                        key,
-                        error,
-                    },
-                })
             }
-
-            mutableList[index] = value
 
             handleCallbacks({
                 onFinal,
@@ -338,7 +404,69 @@ export const useFormFns = <Template>({
                 error,
             })
 
-            // TODO: add indexed item error and item add
+            dispatch({
+                type: 'ARRAY_ERROR',
+                payload: {
+                    key,
+                    error,
+                    index,
+                },
+            })
+
+            dispatch({
+                type: 'SET_ARRAY_VALUE',
+                payload: {
+                    key,
+                    value,
+                    index,
+                },
+            })
+        },
+        removeArrayItem: (key, index, config) => {
+            const { onFinal } = config || {}
+            if (!Array.isArray(state.values[key] || []))
+                throw new Error('Item is not an array')
+            if (state.values[key].length === 0)
+                // eslint-disable-next-line no-console
+                return console.warn('Array item is empty')
+            if (index >= state.values[key].length || index < 0)
+                throw new Error('Item is out of bounds for array')
+
+            const value = state.values[key][index]
+
+            handleCallbacks({
+                onFinal,
+                key,
+                index,
+                value,
+            })
+            return dispatch({
+                type: 'ARRAY_REMOVE_ITEM',
+                payload: { index, key },
+            })
+        },
+        addArrayItem: (key, index, value, config) => {
+            const { onFinal } = config || {}
+            const list = state.values[key] || []
+            if (!Array.isArray(list)) throw new Error('Item is not an array')
+
+            if (index > list.length || index < 0)
+                throw new Error('New item must be sequential and in range')
+
+            handleCallbacks({
+                onFinal,
+                key,
+                index,
+                value,
+            })
+            dispatch({
+                type: 'ARRAY_ADD_ITEM',
+                payload: {
+                    key,
+                    index,
+                    value,
+                },
+            })
         },
         submit: () => {
             const newErrors = validateAll(validation?.onSubmit)
