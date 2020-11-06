@@ -7,6 +7,9 @@
   "dependencies": {
     "immer": "^6.0.2"
   },
+  "peerDependencies": {
+    "react": ">=16.0.0"
+  },
   "scripts": {
     "start": "start-storybook -p 9009 -s public",
     "test": "jest"
@@ -50,6 +53,7 @@
     "prettier": "^2.0.2",
     "react": "^16.13.1",
     "react-dom": "^16.13.1",
+    "react-test-renderer": "^17.0.1",
     "styled-components": "^5.2.0",
     "typescript": "~3.7.2",
     "utility-types": "^3.10.0"
