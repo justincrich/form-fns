@@ -18,18 +18,18 @@ type State<Template extends TemplateType> = {
 type ConditionalValueSelectionType<
     Template,
     K extends keyof Template
-    > = Template[K] extends Array<any> ? Template[K][number] : Template[K]
+> = Template[K] extends Array<any> ? Template[K][number] : Template[K]
 
 export type ValidationFn<
     Template,
     K extends keyof Template = keyof Template
-    > = (
-        currentValue: ConditionalValueSelectionType<Template, K>,
-        nextState: State<Template>['values']
-    ) => {
-        isValid: boolean
-        message?: string
-    }
+> = (
+    currentValue: ConditionalValueSelectionType<Template, K>,
+    nextState: State<Template>['values']
+) => {
+    isValid: boolean
+    message?: string
+}
 
 type ValidationType<Template, K extends keyof Template> =
     | ValidationFn<Template, K>[]
@@ -49,18 +49,18 @@ type CallbackType<Template extends TemplateType, K extends keyof Template> = (
 type BaseChangeConfig<
     Template extends TemplateType,
     K extends keyof Template
-    > = {
-        onFinal?: (args: ChangeArgs<Template, K>) => void
-    }
+> = {
+    onFinal?: (args: ChangeArgs<Template, K>) => void
+}
 
 type ValidationChangeConfig<
     Template extends TemplateType,
     K extends keyof Template
-    > = {
-        validation?: ValidationType<Template, K>
-        onValid?: (args: ChangeArgs<Template, K>) => void
-        onInvalid?: (args: ChangeArgs<Template, K>) => void
-    } & BaseChangeConfig<Template, K>
+> = {
+    validation?: ValidationType<Template, K>
+    onValid?: (args: ChangeArgs<Template, K>) => void
+    onInvalid?: (args: ChangeArgs<Template, K>) => void
+} & BaseChangeConfig<Template, K>
 
 type Action<Type, Payload> = { type: Type; payload: Payload }
 
