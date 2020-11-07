@@ -186,9 +186,6 @@ describe('Standard input tests', () => {
         expect(result.current.errors.name).toEqual('onChange')
     })
     test('Submit validation works, 2 errors, one from change, one from submit', () => {
-        const invalidChange = ''
-        const validChange = ''
-        const finalChange = ''
         const { result } = renderHook(() =>
             useFormFns<{
                 name: string
