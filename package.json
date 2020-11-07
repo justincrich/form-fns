@@ -12,7 +12,10 @@
   },
   "scripts": {
     "start": "start-storybook -p 9009 -s public",
-    "test": "jest"
+    "test": "jest --watch"
+  },
+  "jest": {
+    "verbose": true
   },
   "devDependencies": {
     "@storybook/addon-actions": "^5.3.17",
@@ -55,6 +58,8 @@
     "react-dom": "^16.13.1",
     "react-test-renderer": "^17.0.1",
     "styled-components": "^5.2.0",
+    "ts-jest": "^26.4.3",
+    "ts-node": "^9.0.0",
     "typescript": "~3.7.2",
     "utility-types": "^3.10.0"
   }
