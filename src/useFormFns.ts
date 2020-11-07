@@ -6,7 +6,7 @@
 import { useReducer, Reducer } from 'react'
 import produce from 'immer'
 
-type TemplateType = { [key in string]: any | any[] }
+export type TemplateType = { [key in string]: any | any[] }
 
 export type ErrorType = string | undefined | null
 
@@ -31,20 +31,19 @@ export type ValidationFn<
     message?: string
 }
 
-type ValidationType<Template, K extends keyof Template> =
+export type ValidationType<Template, K extends keyof Template> =
     | ValidationFn<Template, K>[]
     | ValidationFn<Template, K>
 
-type ChangeArgs<Template extends TemplateType, K extends keyof Template> = {
+export type ChangeArgs<
+    Template extends TemplateType,
+    K extends keyof Template
+> = {
     changedKey: K
     changedIndex?: number
     newValue: ConditionalValueSelectionType<Template, K>
     previousState: State<Template>['values']
 }
-
-type CallbackType<Template extends TemplateType, K extends keyof Template> = (
-    args: ChangeArgs<Template, K>
-) => void
 
 type BaseChangeConfig<
     Template extends TemplateType,
@@ -123,7 +122,7 @@ type BaseActions<Template extends TemplateType> =
     | ArrayItemRemoveAction<Template>
     | ArrayItemAddAction<Template>
 
-const DEFAULT_MESSAGE = 'Invalid'
+const DEFAULT_VALIDATION_MESSAGE = 'Invalid'
 
 const baseReducer = <Template extends TemplateType>(
     state: State<Template>,
@@ -283,7 +282,7 @@ export const useFormFns = <Template extends TemplateType>({
                 state.values
             )
 
-            const message: string = passedMessage || DEFAULT_MESSAGE
+            const message: string = passedMessage || DEFAULT_VALIDATION_MESSAGE
 
             if (!isValid) {
                 return message
