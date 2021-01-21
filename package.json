@@ -5,7 +5,7 @@
   "license": "MIT",
   "author": "Justin Rich",
   "dependencies": {
-    "immer": "^6.0.2"
+    "immer": "^8.0.1"
   },
   "peerDependencies": {
     "react": ">=16.8.0"
